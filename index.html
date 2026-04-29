@@ -323,15 +323,16 @@
     return arr.filter(u => typeof u === 'string' && /^spotify:track:[a-zA-Z0-9]+$/.test(u));
   }
 
-  async function playlistAddTracks(playlistId, uriBatch, throttle) {
+  async function playlistAddTracks(playlistId, uriBatch, throttle, insertPosition) {
     const before = uriBatch.length;
     const uris = validTrackUris(uriBatch);
     if (before && !uris.length) {
       log('Пакет не содержит валидных spotify:track:… — добавление пропущено.', 'err');
-      return;
+      return 0;
     }
     if (uris.length < before) log(`Отброшено ${before - uris.length} невалидных URI перед отправкой в плейлист.`, 'warn');
-    await api(`https://api.spotify.com/v1/playlists/${playlistId}/items`, 'POST', { uris }, throttle);
+    await api(`https://api.spotify.com/v1/playlists/${playlistId}/items`, 'POST', { uris, position: insertPosition }, throttle);
+    return uris.length;
   }
 
   async function run() {
@@ -370,8 +371,11 @@
       return;
     }
     log(`Плейлист создан: ${pl.name}`, 'ok');
+    log('Порядок: как в файле сверху вниз → в плейлист сверху вниз (строки, для которых найден трек).', 'dim');
 
     const throttle = { extraMs: 0, total429: 0 };
+    /** Следующая позиция вставки (0-based) после уже добавленных треков */
+    let playlistInsertCursor = 0;
     const n = tracks.length;
     const baseGapMs = n >= 700 ? 580 : n >= 400 ? 500 : n >= 200 ? 420 : 360;
     log(`Интервал между поисками ~${baseGapMs}мс + джиттер (длинные списки идут медленнее, чтобы не ловить лимиты).`, 'dim');
@@ -400,7 +404,8 @@
       if (uris.length === PLAYLIST_URI_BATCH || (i === tracks.length - 1 && uris.length)) {
         const take = uris.length >= PLAYLIST_URI_BATCH ? PLAYLIST_URI_BATCH : uris.length;
         const batch = uris.splice(0, take);
-        await playlistAddTracks(pl.id, batch, throttle);
+        const added = await playlistAddTracks(pl.id, batch, throttle, playlistInsertCursor);
+        playlistInsertCursor += added;
         await sleep(220 + (throttle.extraMs > 0 ? Math.min(400, throttle.extraMs) : 0));
       }
       const jitter = Math.floor(Math.random() * 90);
