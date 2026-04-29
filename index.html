@@ -49,7 +49,7 @@
 <div class="card">
   <div class="st"><span class="sn">1</span> Авторизация</div>
   <div class="hint" style="margin-bottom:12px">
-    Redirect URI в настройках Spotify app: <span style="color:var(--text)">https://devurcc.github.io/callback</span>
+    Redirect URI в настройках Spotify app: <span style="color:var(--text)">https://devurcc.github.io/ym2spotify/callback.html</span>
   </div>
   <div class="btn-row" style="margin-top:0">
     <button id="auth-btn" onclick="authorize()">Войти в Spotify →</button>
@@ -82,7 +82,7 @@
 
 <script>
   const CLIENT_ID = '5f0b51e214604fad80000933cf36da9c';
-  const REDIRECT_URI = 'https://devurcc.github.io/callback';
+  const REDIRECT_URI = 'https://devurcc.github.io/ym2spotify/callback.html';
   const SCOPES = 'playlist-modify-public playlist-modify-private';
 
   let accessToken = null;

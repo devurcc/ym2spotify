@@ -5,27 +5,23 @@
 ## Файлы
 
 - `index.html` — основной импортер, открывать локально
-- `callback.html` — страница для `devurcc.github.io/callback`
+- `callback.html` — редирект после OAuth для GitHub Pages
 
 ## Установка
 
-### 1. callback страница
+### 1. GitHub Pages
 
-Скопируйте `callback.html` в репозиторий `devurcc.github.io`:
+Репозиторий `ym2spotify`: сайт доступен как `https://devurcc.github.io/ym2spotify/`.
 
-```
-devurcc.github.io/
-└── callback/
-    └── index.html   ← содержимое callback.html
-```
+Файл `callback.html` в корне ветки публикации → полный адрес колбэка:
 
-Или просто положите `callback.html` в корень как `callback.html` и проверьте что `https://devurcc.github.io/callback` открывается.
+`https://devurcc.github.io/ym2spotify/callback.html`
 
 ### 2. Настройки Spotify app
 
 На [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) в настройках вашего приложения:
 
-- Redirect URI: `https://devurcc.github.io/callback`
+- Redirect URI: `https://devurcc.github.io/ym2spotify/callback.html`
 - Client ID зашит в `index.html`
 
 ### 3. Использование
