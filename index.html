@@ -239,7 +239,19 @@
       await sleep(wait);
       return api(url, method, body);
     }
-    return res.status === 204 ? {} : res.json();
+    const data = res.status === 204 ? {} : await res.json();
+    if (!res.ok) {
+      const se = data.error;
+      const msg = se?.message || res.statusText || 'ошибка API';
+      log(`Spotify API ${res.status}: ${msg}`, 'err');
+      if (res.status === 403) {
+        log('Частые причины 403: нет нужных scopes (нажми «Переавторизоваться» после смены scope), либо в Spotify Dashboard приложение в режиме Development — добавь свой Spotify-аккаунт в User Management.', 'dim');
+      }
+      const err = new Error(msg);
+      err.status = res.status;
+      throw err;
+    }
+    return data;
   }
 
   async function run() {
@@ -257,12 +269,15 @@
     try { me = await api('https://api.spotify.com/v1/me'); } catch(e) { $('run-btn').disabled = false; return; }
     log(`Пользователь: ${me.display_name || me.id}`, 'dim');
 
-    const pl = await api(`https://api.spotify.com/v1/users/${me.id}/playlists`, 'POST', {
-      name: $('playlist-name').value || 'Импорт',
-      public: false,
-      description: 'Импортировано из Яндекс Музыки'
-    });
-    if (!pl.id) { log('Не удалось создать плейлист', 'err'); $('run-btn').disabled = false; return; }
+    let pl;
+    try {
+      pl = await api('https://api.spotify.com/v1/me/playlists', 'POST', {
+        name: $('playlist-name').value || 'Импорт',
+        public: false,
+        description: 'Импортировано из Яндекс Музыки'
+      });
+    } catch (e) { $('run-btn').disabled = false; return; }
+    if (!pl?.id) { log('Не удалось создать плейлист', 'err'); $('run-btn').disabled = false; return; }
     log(`Плейлист создан: ${pl.name}`, 'ok');
 
     let ok = 0, miss = 0;

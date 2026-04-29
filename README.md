@@ -24,7 +24,12 @@
 - Redirect URI: `https://devurcc.github.io/ym2spotify/callback.html`
 - Client ID зашит в `index.html`
 
-### 3. Использование
+### 3. Ошибка 403 при создании плейлиста
+
+- Войдите заново («Переавторизоваться»), чтобы токен получил scopes `playlist-modify-*`.
+- В [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) откройте приложение → **Settings** → **User management**: в режиме **Development** API для сторонних аккаунтов ограничен — добавьте туда **Spotify-логин**, с которым заходите в приложение.
+
+### 4. Использование
 
 1. Откройте `index.html` в браузере (двойной клик)
 2. Нажмите «Войти в Spotify» → появится попап → войдите → попап закроется
