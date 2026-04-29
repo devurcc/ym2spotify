@@ -35,9 +35,10 @@
 - Переавторизуйтесь, чтобы токен содержал актуальные scopes.
 - [Dashboard → User management](https://developer.spotify.com/dashboard): в режиме **Development** добавьте аккаунт, с которым входите в приложение.
 
-**Поиск треков:**
+**Добавление треков в плейлист (403 на `POST …/tracks` или `…/items`):**
 
-- Убедитесь, что в запросах поиска передаётся **`market`** (в коде это делается автоматически из `country` после `user-read-private`) и выполнен повторный вход после добавления этого scope.
+- Используется актуальный эндпоинт **`POST /v1/playlists/{id}/items`** ([документы Spotify](https://developer.spotify.com/documentation/web-api/reference/add-items-to-playlist)); старый путь **`…/tracks`** считается deprecated.
+- Для приватного плейлиста нужен **`playlist-modify-private`** и приватный профиль; в логе после входа смотрите строку **«Токен scopes»**.
 
 ### 5. Использование
 

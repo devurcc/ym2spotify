@@ -210,6 +210,7 @@
       $('auth-btn').textContent = 'Переавторизоваться';
       $('auth-btn').disabled = false;
       log('Авторизация успешна', 'ok');
+      if (d.scope) log('Токен scopes: ' + d.scope, 'dim');
       checkReady();
     } else {
       $('auth-status').textContent = 'Ошибка токена: ' + (d.error_description || d.error);
@@ -297,10 +298,14 @@
       const se = data.error;
       const msg = se?.message || res.statusText || 'ошибка API';
       log(`Spotify API ${res.status}: ${msg}`, 'err');
+      try { log('Полный ответ: ' + JSON.stringify(data).slice(0, 900), 'dim'); } catch (e) {}
       if (res.status === 403) {
         log('Частые причины 403: нет нужных scopes (нажми «Переавторизоваться» после смены scope), либо в Spotify Dashboard приложение в режиме Development — добавь свой Spotify-аккаунт в User Management.', 'dim');
         if (String(url).includes('/search')) {
           log('Поиск GET /search: в документации Spotify нужен market или страна пользователя; без user-read-private и параметра market результаты могут быть недоступны (403). После обновления scope — войти заново.', 'dim');
+        }
+        if (String(url).includes('/playlists/') && (String(url).includes('/items') || String(url).includes('/tracks'))) {
+          log('Добавление в плейлист: нужны playlist-modify-public и/или playlist-modify-private (для приватного плейлиста — private). Используется POST …/playlists/{id}/items (актуальный эндпоинт). Проверь лог «Токен scopes» после входа.', 'dim');
         }
       }
       const err = new Error(msg);
@@ -309,6 +314,21 @@
     }
     if (throttle && throttle.extraMs > 0) throttle.extraMs = Math.max(0, throttle.extraMs - BACKOFF.throttleDecayPerOk);
     return data;
+  }
+
+  function validTrackUris(arr) {
+    return arr.filter(u => typeof u === 'string' && /^spotify:track:[a-zA-Z0-9]+$/.test(u));
+  }
+
+  async function playlistAddTracks(playlistId, uriBatch, throttle) {
+    const before = uriBatch.length;
+    const uris = validTrackUris(uriBatch);
+    if (before && !uris.length) {
+      log('Пакет не содержит валидных spotify:track:… — добавление пропущено.', 'err');
+      return;
+    }
+    if (uris.length < before) log(`Отброшено ${before - uris.length} невалидных URI перед отправкой в плейлист.`, 'warn');
+    await api(`https://api.spotify.com/v1/playlists/${playlistId}/items`, 'POST', { uris }, throttle);
   }
 
   async function run() {
@@ -341,6 +361,11 @@
       });
     } catch (e) { $('run-btn').disabled = false; return; }
     if (!pl?.id) { log('Не удалось создать плейлист', 'err'); $('run-btn').disabled = false; return; }
+    if (pl.owner?.id && pl.owner.id !== me.id) {
+      log(`Владелец плейлиста (${pl.owner.id}) ≠ текущий пользователь (${me.id}) — добавление треков вернёт 403.`, 'err');
+      $('run-btn').disabled = false;
+      return;
+    }
     log(`Плейлист создан: ${pl.name}`, 'ok');
 
     const throttle = { extraMs: 0, total429: 0 };
@@ -370,8 +395,8 @@
       $('smi').textContent = miss;
 
       if (uris.length === 100 || (i === tracks.length - 1 && uris.length)) {
-        await api(`https://api.spotify.com/v1/playlists/${pl.id}/tracks`, 'POST', { uris: [...uris] }, throttle);
-        uris.length = 0;
+        const batch = uris.splice(0, uris.length === 100 ? 100 : uris.length);
+        await playlistAddTracks(pl.id, batch, throttle);
         await sleep(220 + (throttle.extraMs > 0 ? Math.min(400, throttle.extraMs) : 0));
       }
       const jitter = Math.floor(Math.random() * 90);
