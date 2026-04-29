@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spotify Import</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0d0d0f; --surface: #141416; --border: #222226;
+    --accent: #1db954; --text: #e8e8e8; --muted: #555560;
+    --red: #e24b4a; --amber: #ef9f27; --mono: 'JetBrains Mono', monospace;
+  }
+  body { background: var(--bg); color: var(--text); font-family: var(--mono); font-size: 13px; min-height: 100vh; padding: 32px 24px; }
+  h1 { font-size: 18px; font-weight: 600; color: var(--accent); margin-bottom: 4px; }
+  .sub { font-size: 11px; color: var(--muted); margin-bottom: 24px; letter-spacing: 0.06em; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 14px; }
+  label { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 6px; }
+  input[type=text] { width: 100%; background: #0d0d0f; border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-family: var(--mono); font-size: 12px; padding: 8px 10px; outline: none; }
+  input:focus { border-color: #444; }
+  .drop { border: 1.5px dashed var(--border); border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; color: var(--muted); font-size: 12px; transition: border-color .15s; }
+  .drop:hover, .drop.over { border-color: #444; color: var(--text); }
+  .drop input { display: none; }
+  button { padding: 8px 16px; border-radius: 6px; font-family: var(--mono); font-size: 12px; cursor: pointer; border: 1px solid var(--border); background: var(--surface); color: var(--text); transition: background .15s; }
+  button:hover:not(:disabled) { background: #1e1e22; }
+  button:disabled { opacity: .4; cursor: default; }
+  .btn-green { background: var(--accent); border-color: var(--accent); color: #000; font-weight: 600; }
+  .btn-green:hover:not(:disabled) { background: #17a347; }
+  .btn-row { display: flex; gap: 10px; margin-top: 14px; align-items: center; flex-wrap: wrap; }
+  .log { background: #090909; border: 1px solid var(--border); border-radius: 8px; padding: 12px; height: 240px; overflow-y: auto; font-size: 11px; line-height: 1.9; margin-top: 14px; }
+  .ll { display: flex; gap: 8px; }
+  .ok { color: var(--accent); } .err { color: var(--red); } .warn { color: var(--amber); } .dim { color: var(--muted); }
+  .progress-wrap { height: 4px; background: var(--border); border-radius: 2px; margin-top: 12px; overflow: hidden; }
+  .progress-bar { height: 100%; background: var(--accent); border-radius: 2px; width: 0%; transition: width .3s; }
+  .stat { font-size: 11px; color: var(--muted); margin-top: 6px; display: flex; gap: 16px; }
+  .stat span { color: var(--text); }
+  a { color: var(--accent); text-decoration: none; font-size: 11px; }
+  a:hover { text-decoration: underline; }
+  .sn { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; background: var(--border); font-size: 9px; color: var(--muted); margin-right: 6px; flex-shrink: 0; }
+  .st { font-size: 11px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; }
+  .hint { font-size: 10px; color: var(--muted); margin-top: 6px; line-height: 1.6; }
+</style>
+</head>
+<body>
+
+<h1>Spotify Import</h1>
+<p class="sub">TXT → Spotify playlist · Исполнитель - Песня</p>
+
+<div class="card">
+  <div class="st"><span class="sn">1</span> Авторизация</div>
+  <div class="hint" style="margin-bottom:12px">
+    Redirect URI в настройках Spotify app: <span style="color:var(--text)">https://devurcc.github.io/callback</span>
+  </div>
+  <div class="btn-row" style="margin-top:0">
+    <button id="auth-btn" onclick="authorize()">Войти в Spotify →</button>
+    <span id="auth-status" class="dim" style="font-size:11px">не авторизован</span>
+  </div>
+</div>
+
+<div class="card">
+  <div class="st"><span class="sn">2</span> TXT файл</div>
+  <div class="drop" id="drop" onclick="document.getElementById('fi').click()">
+    <input type="file" id="fi" accept=".txt">
+    Перетащите TXT или кликните · формат: Исполнитель - Песня
+  </div>
+  <div id="file-info" style="margin-top:8px;font-size:11px;color:var(--muted)"></div>
+</div>
+
+<div class="card">
+  <div class="st"><span class="sn">3</span> Импорт</div>
+  <label>Название плейлиста</label>
+  <input type="text" id="playlist-name" value="Импорт из Яндекс Музыки">
+  <div class="btn-row">
+    <button class="btn-green" id="run-btn" onclick="run()" disabled>Запустить импорт</button>
+    <button onclick="document.getElementById('log').innerHTML=''">Очистить лог</button>
+  </div>
+  <div class="progress-wrap" id="pw" style="display:none"><div class="progress-bar" id="pb"></div></div>
+  <div class="stat" id="stat" style="display:none">Добавлено: <span id="sok">0</span> &nbsp; Не найдено: <span id="smi">0</span> &nbsp; Из <span id="stot">0</span></div>
+  <div class="log" id="log"></div>
+  <div id="pllink" style="margin-top:8px"></div>
+</div>
+
+<script>
+  const CLIENT_ID = '5f0b51e214604fad80000933cf36da9c';
+  const REDIRECT_URI = 'https://devurcc.github.io/callback';
+  const SCOPES = 'playlist-modify-public playlist-modify-private';
+
+  let accessToken = null;
+  let tracks = [];
+
+  const $ = id => document.getElementById(id);
+
+  function log(msg, cls) {
+    const el = $('log');
+    const d = document.createElement('div');
+    d.className = 'll';
+    const icon = cls === 'ok' ? '✓' : cls === 'err' ? '✗' : cls === 'warn' ? '!' : '·';
+    d.innerHTML = `<span class="${cls||'dim'}" style="flex-shrink:0;min-width:14px">${icon}</span><span>${msg}</span>`;
+    el.appendChild(d);
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+  function checkReady() { $('run-btn').disabled = !(accessToken && tracks.length); }
+
+  function generateVerifier(len) {
+    const arr = new Uint8Array(len);
+    crypto.getRandomValues(arr);
+    return btoa(String.fromCharCode(...arr)).replace(/[^a-zA-Z0-9]/g, '').slice(0, len);
+  }
+
+  async function generateChallenge(verifier) {
+    const data = new TextEncoder().encode(verifier);
+    const digest = await crypto.subtle.digest('SHA-256', data);
+    return btoa(String.fromCharCode(...new Uint8Array(digest)))
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  async function authorize() {
+    $('auth-btn').disabled = true;
+    $('auth-status').textContent = 'Открываю окно...';
+    $('auth-status').className = 'dim';
+
+    const verifier = generateVerifier(96);
+    const challenge = await generateChallenge(verifier);
+    sessionStorage.setItem('pkce_verifier', verifier);
+
+    const params = new URLSearchParams({
+      client_id: CLIENT_ID,
+      response_type: 'code',
+      redirect_uri: REDIRECT_URI,
+      scope: SCOPES,
+      code_challenge_method: 'S256',
+      code_challenge: challenge,
+    });
+
+    const popup = window.open(
+      'https://accounts.spotify.com/authorize?' + params,
+      'spotify_auth',
+      'width=480,height=680,left=' + Math.round((screen.width-480)/2) + ',top=' + Math.round((screen.height-680)/2)
+    );
+
+    if (!popup) {
+      $('auth-status').textContent = 'Попап заблокирован — разрешите всплывающие окна';
+      $('auth-status').className = 'err';
+      $('auth-btn').disabled = false;
+      return;
+    }
+
+    const onMessage = async e => {
+      if (!e.data?.spotify_code && !e.data?.spotify_error) return;
+      window.removeEventListener('message', onMessage);
+      if (e.data.spotify_error) {
+        $('auth-status').textContent = 'Ошибка: ' + e.data.spotify_error;
+        $('auth-status').className = 'err';
+        $('auth-btn').disabled = false;
+        return;
+      }
+      await exchangeCode(e.data.spotify_code);
+    };
+    window.addEventListener('message', onMessage);
+
+    const pollClosed = setInterval(() => {
+      if (popup.closed) {
+        clearInterval(pollClosed);
+        if (!accessToken) {
+          window.removeEventListener('message', onMessage);
+          $('auth-status').textContent = 'Окно закрыто без авторизации';
+          $('auth-status').className = 'warn';
+          $('auth-btn').disabled = false;
+        }
+      }
+    }, 600);
+  }
+
+  async function exchangeCode(code) {
+    $('auth-status').textContent = 'Получаю токен...';
+    const verifier = sessionStorage.getItem('pkce_verifier');
+    const res = await fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: CLIENT_ID,
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: REDIRECT_URI,
+        code_verifier: verifier,
+      })
+    });
+    const d = await res.json();
+    if (d.access_token) {
+      accessToken = d.access_token;
+      $('auth-status').textContent = '✓ Авторизован';
+      $('auth-status').className = 'ok';
+      $('auth-btn').textContent = 'Переавторизоваться';
+      $('auth-btn').disabled = false;
+      log('Авторизация успешна', 'ok');
+      checkReady();
+    } else {
+      $('auth-status').textContent = 'Ошибка токена: ' + (d.error_description || d.error);
+      $('auth-status').className = 'err';
+      $('auth-btn').disabled = false;
+    }
+  }
+
+  const drop = $('drop'), fi = $('fi');
+  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+  drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); loadFile(e.dataTransfer.files[0]); });
+  fi.addEventListener('change', () => { loadFile(fi.files[0]); fi.value = ''; });
+
+  function loadFile(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const lines = e.target.result.replace(/^\uFEFF/, '').split(/\r?\n/)
+        .map(l => l.trim()).filter(l => l && l.includes(' - '));
+      tracks = lines.map(l => {
+        const i = l.indexOf(' - ');
+        return { artist: l.slice(0, i).trim(), track: l.slice(i + 3).trim(), raw: l };
+      });
+      $('file-info').textContent = `${file.name} — ${tracks.length} треков`;
+      log(`Файл загружен: ${tracks.length} треков`, 'ok');
+      checkReady();
+    };
+    reader.readAsText(file, 'utf-8');
+  }
+
+  async function api(url, method, body) {
+    const res = await fetch(url, {
+      method: method || 'GET',
+      headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined
+    });
+    if (res.status === 401) { log('Токен истёк — нажмите «Переавторизоваться»', 'err'); throw new Error('401'); }
+    if (res.status === 429) {
+      const wait = (parseInt(res.headers.get('Retry-After') || '3') + 1) * 1000;
+      log(`Rate limit, жду ${wait/1000}с...`, 'warn');
+      await sleep(wait);
+      return api(url, method, body);
+    }
+    return res.status === 204 ? {} : res.json();
+  }
+
+  async function run() {
+    if (!accessToken || !tracks.length) return;
+    $('run-btn').disabled = true;
+    $('stat').style.display = 'flex';
+    $('pw').style.display = 'block';
+    $('pb').style.width = '0%';
+    $('stot').textContent = tracks.length;
+    $('sok').textContent = '0';
+    $('smi').textContent = '0';
+    $('pllink').innerHTML = '';
+
+    let me;
+    try { me = await api('https://api.spotify.com/v1/me'); } catch(e) { $('run-btn').disabled = false; return; }
+    log(`Пользователь: ${me.display_name || me.id}`, 'dim');
+
+    const pl = await api(`https://api.spotify.com/v1/users/${me.id}/playlists`, 'POST', {
+      name: $('playlist-name').value || 'Импорт',
+      public: false,
+      description: 'Импортировано из Яндекс Музыки'
+    });
+    if (!pl.id) { log('Не удалось создать плейлист', 'err'); $('run-btn').disabled = false; return; }
+    log(`Плейлист создан: ${pl.name}`, 'ok');
+
+    let ok = 0, miss = 0;
+    const uris = [];
+
+    for (let i = 0; i < tracks.length; i++) {
+      const { artist, track, raw } = tracks[i];
+      $('pb').style.width = Math.round((i + 1) / tracks.length * 100) + '%';
+      try {
+        const q = encodeURIComponent(`track:${track} artist:${artist}`);
+        const d = await api(`https://api.spotify.com/v1/search?q=${q}&type=track&limit=1`);
+        const uri = d?.tracks?.items?.[0]?.uri;
+        if (uri) { uris.push(uri); ok++; log(`${artist} - ${track}`, 'ok'); }
+        else { miss++; log(`не найдено: ${raw}`, 'warn'); }
+      } catch(e) { $('run-btn').disabled = false; return; }
+
+      $('sok').textContent = ok;
+      $('smi').textContent = miss;
+
+      if (uris.length === 100 || (i === tracks.length - 1 && uris.length)) {
+        await api(`https://api.spotify.com/v1/playlists/${pl.id}/tracks`, 'POST', { uris: [...uris] });
+        uris.length = 0;
+      }
+      await sleep(150);
+    }
+
+    log(`Готово. Добавлено: ${ok}, не найдено: ${miss}`, 'ok');
+    if (pl.external_urls?.spotify) {
+      $('pllink').innerHTML = `<a href="${pl.external_urls.spotify}" target="_blank">Открыть плейлист в Spotify →</a>`;
+    }
+    $('run-btn').disabled = false;
+  }
+</script>
+</body>
+</html>

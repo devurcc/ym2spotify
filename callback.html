@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Spotify callback</title>
+<style>
+  body { background: #0d0d0f; color: #555560; font-family: monospace; font-size: 13px; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+</style>
+</head>
+<body>
+<span id="msg">Авторизация...</span>
+<script>
+  const p = new URLSearchParams(location.search);
+  const code = p.get('code');
+  const error = p.get('error');
+  if (window.opener) {
+    window.opener.postMessage({ spotify_code: code, spotify_error: error }, '*');
+    document.getElementById('msg').textContent = 'Готово, окно закроется...';
+    setTimeout(() => window.close(), 500);
+  } else {
+    document.getElementById('msg').textContent = error
+      ? 'Ошибка: ' + error
+      : 'Откройте импортер и нажмите «Войти в Spotify»';
+  }
+</script>
+</body>
+</html>
