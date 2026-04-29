@@ -86,7 +86,7 @@
   /** playlist-modify-* — плейлисты; user-read-private — страна аккаунта для параметра market при GET /search (см. доку Spotify) */
   const SCOPES = 'playlist-modify-public playlist-modify-private user-read-private';
 
-  /** Задержка при HTTP 429: Retry-After + экспонента по глубине цепочки, макс. одна пауза */
+  /** Задержка при HTTP 429 */
   const BACKOFF = {
     max429Depth: 14,
     hardResetMs: 90_000,
@@ -99,6 +99,9 @@
     throttleDecayPerOk: 35,
     throttleHardCapMs: 2800,
   };
+
+  /** POST в плейлист за раз столько URIs (макс. 100 по Spotify; малый батч → раньше падаем при ошибке) */
+  const PLAYLIST_URI_BATCH = 10;
 
   let accessToken = null;
   let tracks = [];
@@ -394,8 +397,9 @@
       $('sok').textContent = ok;
       $('smi').textContent = miss;
 
-      if (uris.length === 100 || (i === tracks.length - 1 && uris.length)) {
-        const batch = uris.splice(0, uris.length === 100 ? 100 : uris.length);
+      if (uris.length === PLAYLIST_URI_BATCH || (i === tracks.length - 1 && uris.length)) {
+        const take = uris.length >= PLAYLIST_URI_BATCH ? PLAYLIST_URI_BATCH : uris.length;
+        const batch = uris.splice(0, take);
         await playlistAddTracks(pl.id, batch, throttle);
         await sleep(220 + (throttle.extraMs > 0 ? Math.min(400, throttle.extraMs) : 0));
       }
