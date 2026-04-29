@@ -83,7 +83,8 @@
 <script>
   const CLIENT_ID = '5f0b51e214604fad80000933cf36da9c';
   const REDIRECT_URI = 'https://devurcc.github.io/ym2spotify/callback.html';
-  const SCOPES = 'playlist-modify-public playlist-modify-private';
+  /** playlist-modify-* — плейлисты; user-read-private — страна аккаунта для параметра market при GET /search (см. доку Spotify) */
+  const SCOPES = 'playlist-modify-public playlist-modify-private user-read-private';
 
   /** Задержка при HTTP 429: Retry-After + экспонента по глубине цепочки, макс. одна пауза */
   const BACKOFF = {
@@ -298,6 +299,9 @@
       log(`Spotify API ${res.status}: ${msg}`, 'err');
       if (res.status === 403) {
         log('Частые причины 403: нет нужных scopes (нажми «Переавторизоваться» после смены scope), либо в Spotify Dashboard приложение в режиме Development — добавь свой Spotify-аккаунт в User Management.', 'dim');
+        if (String(url).includes('/search')) {
+          log('Поиск GET /search: в документации Spotify нужен market или страна пользователя; без user-read-private и параметра market результаты могут быть недоступны (403). После обновления scope — войти заново.', 'dim');
+        }
       }
       const err = new Error(msg);
       err.status = res.status;
@@ -321,6 +325,12 @@
     let me;
     try { me = await api('https://api.spotify.com/v1/me'); } catch(e) { $('run-btn').disabled = false; return; }
     log(`Пользователь: ${me.display_name || me.id}`, 'dim');
+    const searchMarket = (me.country && String(me.country).length === 2) ? me.country : 'US';
+    if (!me.country) {
+      log('В ответе /v1/me нет поля country — возможен scope без user-read-private. Параметр поиска market=US (запасной). Нажми «Переавторизоваться», чтобы выдать новые права и подставить регион из аккаунта.', 'warn');
+    } else {
+      log(`Поиск треков: market=${searchMarket} (регион каталога Spotify).`, 'dim');
+    }
 
     let pl;
     try {
@@ -349,7 +359,8 @@
       }
       try {
         const q = encodeURIComponent(`track:${track} artist:${artist}`);
-        const d = await api(`https://api.spotify.com/v1/search?q=${q}&type=track&limit=1`, undefined, undefined, throttle);
+        const searchUrl = `https://api.spotify.com/v1/search?q=${q}&type=track&limit=1&market=${encodeURIComponent(searchMarket)}`;
+        const d = await api(searchUrl, undefined, undefined, throttle);
         const uri = d?.tracks?.items?.[0]?.uri;
         if (uri) { uris.push(uri); ok++; log(`${artist} - ${track}`, 'ok'); }
         else { miss++; log(`не найдено: ${raw}`, 'warn'); }

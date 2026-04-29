@@ -24,12 +24,22 @@
 - Redirect URI: `https://devurcc.github.io/ym2spotify/callback.html`
 - Client ID зашит в `index.html`
 
-### 3. Ошибка 403 при создании плейлиста
+### 3. Scopes OAuth
 
-- Войдите заново («Переавторизоваться»), чтобы токен получил scopes `playlist-modify-*`.
-- В [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) откройте приложение → **Settings** → **User management**: в режиме **Development** API для сторонних аккаунтов ограничен — добавьте туда **Spotify-логин**, с которым заходите в приложение.
+Приложение запрашивает: `playlist-modify-public playlist-modify-private user-read-private`. Последний нужен для поля **`country`** в профиле ([документы Spotify](https://developer.spotify.com/documentation/web-api/reference/get-current-users-profile)): по нему в запрос **`GET /v1/search`** подставляется параметр **`market`** (иначе без market и страны каталог считается недоступным). После смены scope обязательна **повторная авторизация**.
 
-### 4. Использование
+### 4. Ошибка 403
+
+**Плейлист:**
+
+- Переавторизуйтесь, чтобы токен содержал актуальные scopes.
+- [Dashboard → User management](https://developer.spotify.com/dashboard): в режиме **Development** добавьте аккаунт, с которым входите в приложение.
+
+**Поиск треков:**
+
+- Убедитесь, что в запросах поиска передаётся **`market`** (в коде это делается автоматически из `country` после `user-read-private`) и выполнен повторный вход после добавления этого scope.
+
+### 5. Использование
 
 1. Откройте `index.html` в браузере (двойной клик)
 2. Нажмите «Войти в Spotify» → появится попап → войдите → попап закроется
