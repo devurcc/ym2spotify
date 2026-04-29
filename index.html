@@ -226,7 +226,7 @@
     reader.readAsText(file, 'utf-8');
   }
 
-  async function api(url, method, body) {
+  async function api(url, method, body, throttle, depth429 = 0) {
     const res = await fetch(url, {
       method: method || 'GET',
       headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
@@ -234,10 +234,19 @@
     });
     if (res.status === 401) { log('Токен истёк — нажмите «Переавторизоваться»', 'err'); throw new Error('401'); }
     if (res.status === 429) {
-      const wait = (parseInt(res.headers.get('Retry-After') || '3') + 1) * 1000;
-      log(`Rate limit, жду ${wait/1000}с...`, 'warn');
-      await sleep(wait);
-      return api(url, method, body);
+      if (depth429 >= 14) {
+        log('Много последовательных 429 от Spotify — сделайте паузу 1–2 мин и повторите, или продолжайте после авто‑ожидания.', 'err');
+        await sleep(90000);
+        return api(url, method, body, throttle, 0);
+      }
+      let sec = parseFloat(res.headers.get('Retry-After') || '5');
+      if (Number.isNaN(sec) || sec < 1) sec = 5;
+      sec = Math.min(120, sec);
+      if (throttle) throttle.extraMs = Math.min(2800, (throttle.extraMs || 0) + Math.round(380 + depth429 * 120));
+      const waitMs = Math.round(sec * 1000 + depth429 * 500);
+      log(`Rate limit (429), жду ${Math.ceil(waitMs / 1000)}с… (паузы между запросами увеличены)`, 'warn');
+      await sleep(waitMs);
+      return api(url, method, body, throttle, depth429 + 1);
     }
     const data = res.status === 204 ? {} : await res.json();
     if (!res.ok) {
@@ -251,6 +260,7 @@
       err.status = res.status;
       throw err;
     }
+    if (throttle && throttle.extraMs > 0) throttle.extraMs = Math.max(0, throttle.extraMs - 35);
     return data;
   }
 
@@ -280,6 +290,11 @@
     if (!pl?.id) { log('Не удалось создать плейлист', 'err'); $('run-btn').disabled = false; return; }
     log(`Плейлист создан: ${pl.name}`, 'ok');
 
+    const throttle = { extraMs: 0 };
+    const n = tracks.length;
+    const baseGapMs = n >= 700 ? 580 : n >= 400 ? 500 : n >= 200 ? 420 : 360;
+    log(`Интервал между поисками ~${baseGapMs}мс + джиттер (длинные списки идут медленнее, чтобы не ловить лимиты).`, 'dim');
+
     let ok = 0, miss = 0;
     const uris = [];
 
@@ -288,7 +303,7 @@
       $('pb').style.width = Math.round((i + 1) / tracks.length * 100) + '%';
       try {
         const q = encodeURIComponent(`track:${track} artist:${artist}`);
-        const d = await api(`https://api.spotify.com/v1/search?q=${q}&type=track&limit=1`);
+        const d = await api(`https://api.spotify.com/v1/search?q=${q}&type=track&limit=1`, undefined, undefined, throttle);
         const uri = d?.tracks?.items?.[0]?.uri;
         if (uri) { uris.push(uri); ok++; log(`${artist} - ${track}`, 'ok'); }
         else { miss++; log(`не найдено: ${raw}`, 'warn'); }
@@ -298,10 +313,12 @@
       $('smi').textContent = miss;
 
       if (uris.length === 100 || (i === tracks.length - 1 && uris.length)) {
-        await api(`https://api.spotify.com/v1/playlists/${pl.id}/tracks`, 'POST', { uris: [...uris] });
+        await api(`https://api.spotify.com/v1/playlists/${pl.id}/tracks`, 'POST', { uris: [...uris] }, throttle);
         uris.length = 0;
+        await sleep(220 + (throttle.extraMs > 0 ? Math.min(400, throttle.extraMs) : 0));
       }
-      await sleep(150);
+      const jitter = Math.floor(Math.random() * 90);
+      await sleep(baseGapMs + jitter + throttle.extraMs);
     }
 
     log(`Готово. Добавлено: ${ok}, не найдено: ${miss}`, 'ok');
